@@ -92,6 +92,8 @@ class KalmanBoxTracker:
         self.hit_streak = 0
         self.age = 0
 
+        self.det_id = -1
+
     def update(self, bbox):
         """
         猜测：根据关联后的bbox跟新当前的bbox
@@ -215,11 +217,13 @@ class Sort(object):
             if (t not in unmatched_trks):
                 d = matched[np.where(matched[:, 1] == t)[0], 0]
                 trk.update(dets[d, :][0])
+                trk.det_id = d[0]
         # 对于没有匹配到的检测框，创建跟踪器进行跟踪
         # create and initialise new trackers for unmatched detections
         for i in unmatched_dets:
             trk = KalmanBoxTracker(dets[i, :])
             self.trackers.append(trk)
+            trk.det_id = i
         # 检查一遍跟踪器,从后向前是为了避免抛异常？？？
         i = len(self.trackers)
         for trk in reversed(self.trackers):
@@ -227,7 +231,7 @@ class Sort(object):
             d = trk.get_state()[0]
             # 刚刚predict或者是刚创建的跟踪器，并且（）
             if ((trk.time_since_update < 1) and (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits)):
-                ret.append(np.concatenate((d, [trk.id + 1])).reshape(1, -1))  # +1 as MOT benchmark requires positive
+                ret.append(np.concatenate((d, [trk.id], [trk.det_id])).reshape(1, -1))
             i -= 1
             # remove dead tracklet
             if (trk.time_since_update > self.max_age):
@@ -235,4 +239,4 @@ class Sort(object):
         if len(ret) > 0:
             # ret的内容为[left, top, right, bottom, id]
             return np.concatenate(ret)
-        return np.empty((0, 5))
+        return np.empty((0, 6))
